@@ -417,7 +417,7 @@ class AresBot:
                 target = uid
         name = self.get_user_name(target)
         data = cursor.execute("SELECT warns, level, exp, coins FROM users WHERE user_id=?", (target,)).fetchone()
-        warns, lvl, exp, coins = data if data else (0,1,0,1000)
+        warns, lvl, exp, coins = data if data else (0, 1, 0, 1000)
         exp_next = lvl * 100
         bar_length = 10
         filled = int((exp / exp_next) * bar_length) if exp_next else 0
@@ -483,6 +483,7 @@ class AresBot:
             self.send(peer_id, "❌ Некорректный пользователь.")
             return
         reason = " ".join(args[1:]) if len(args) > 1 else "Не указана"
+        # Проверяем, не выше ли приоритет цели
         if self.get_user_priority(target, chat_id) >= self.get_user_priority(from_id, chat_id) and not self.is_sysadmin(from_id):
             self.send(peer_id, "⛔ Вы не можете выдать предупреждение пользователю с равным или более высоким приоритетом.")
             return
@@ -584,6 +585,7 @@ class AresBot:
         else:
             reason = " ".join(args[1:]) if len(args) > 1 else "Не указана"
         expires = 0 if days == 0 else int(time.time()) + days * 86400
+        # Проверка приоритета
         if self.get_user_priority(target, chat_id) >= self.get_user_priority(from_id, chat_id) and not self.is_sysadmin(from_id):
             self.send(peer_id, "⛔ Вы не можете забанить пользователя с равным или более высоким приоритетом.")
             return
@@ -653,6 +655,7 @@ class AresBot:
         if not role:
             self.send(peer_id, "❌ Роль с таким приоритетом не существует.")
             return
+        # Выдаём роль
         cursor.execute("INSERT OR REPLACE INTO user_roles (user_id, chat_id, priority) VALUES (?,?,?)",
                        (target, chat_id, priority))
         conn.commit()
@@ -697,6 +700,7 @@ class AresBot:
         if not name:
             self.send(peer_id, "❌ Укажите название роли.")
             return
+        # Проверяем, не занят ли приоритет
         exist = cursor.execute("SELECT id FROM roles WHERE chat_id=? AND priority=?", (chat_id, priority)).fetchone()
         if exist:
             cursor.execute("UPDATE roles SET name=? WHERE chat_id=? AND priority=?", (name, chat_id, priority))
@@ -722,6 +726,7 @@ class AresBot:
         except:
             self.send(peer_id, "❌ Приоритет должен быть числом.")
             return
+        # Удаляем роль
         cursor.execute("DELETE FROM roles WHERE chat_id=? AND priority=?", (chat_id, priority))
         conn.commit()
         self.send(peer_id, f"✅ Роль с приоритетом {priority} удалена.")
@@ -755,7 +760,7 @@ class AresBot:
             name = self.get_user_name(target)
             self.send(peer_id, f"✅ {name} больше не системный администратор.")
         else:
-            self.send(peer_id, "❌ Использование: /sysadmin add @id или /sysadmin remove @id")
+            self.send(peer_id, f"❌ Использование: {PREFIX}sysadmin add @id или {PREFIX}sysadmin remove @id")
 
     def cmd_sysrole(self, args, peer_id, from_id, chat_id):
         if not self.is_sysadmin(from_id):
@@ -965,8 +970,11 @@ def root():
     return {"status": f"{BOT_NAME} is running"}
 
 def run_bot():
-    bot = AresBot()
-    bot.run()
+    try:
+        bot = AresBot()
+        bot.run()
+    except Exception as e:
+        print(f"❌ Ошибка в боте: {e}")
 
 if __name__ == "__main__":
     # Запускаем бота в отдельном потоке
