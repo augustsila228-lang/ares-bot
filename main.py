@@ -2,6 +2,7 @@
 # ARES: ЧАТ-МЕНЕДЖЕР (ПРЕМИУМ-ВЕРСИЯ)
 # Полная копия Grand (кроме рабов)
 # Команды через /, стиль, смайлики, роли, системные админы
+# ИСПРАВЛЕННАЯ И ПОЛНОСТЬЮ РАБОЧАЯ ВЕРСИЯ
 # ============================================
 
 import vk_api
@@ -14,6 +15,7 @@ from datetime import datetime, timedelta
 import threading
 from fastapi import FastAPI
 import uvicorn
+import os
 
 # ===== ТВОИ ДАННЫЕ =====
 TOKEN = "vk1.a.NJgDVnKsv7inayrlqMXqJmevAVJBX0jAWCD33RC4w27CYWekHlXCvHFFsXNHp5447AHdmZboM2-SVBuyCk5Up1BqIxGOmkwwZ3pRjlizFJ8ogcMygQSMGxto-kzEm6lNBGqQjTifcD_MY4kLVejoqG_JcstMe3JXBuLc2wW_mWux-3gH2DVGckYcgr_oKKq5lV_c3vaMxvrGMTBYufPWgg"
@@ -248,7 +250,7 @@ class AresBot:
         invited_id = event.obj['action']['member_id']
         if invited_id == -GROUP_ID:  # бота добавили
             self.init_chat_roles(chat_id)
-            self.send(peer_id, f"👋 Всем привет! Я {BOT_NAME} — чат-менеджер.\n{ PREFIX }помощь — список команд.")
+            self.send(peer_id, f"👋 Всем привет! Я {BOT_NAME} — чат-менеджер.\n{PREFIX}помощь — список команд.")
         elif invited_id > 0:
             # Приветствие нового участника
             welcome = cursor.execute("SELECT welcome FROM chats WHERE chat_id=?", (chat_id,)).fetchone()
@@ -349,7 +351,6 @@ class AresBot:
 {PREFIX}унмут — разрешить писать в чат
 {PREFIX}варн — выдать предупреждение
 {PREFIX}снятьварн — снять предупреждение
-{PREFIX}настройки — детальная настройка конференции
 {PREFIX}админы — отобразить список участников с ролью
 {PREFIX}роль — выдать роль участнику
 {PREFIX}профиль — ваш профиль и баланс
@@ -357,7 +358,7 @@ class AresBot:
 {PREFIX}перевод — перевести монеты
 {PREFIX}топ — топ богачей
 {PREFIX}помощь — это сообщение
-        """
+"""
         self.send(peer_id, help_text)
 
     def cmd_ping(self, peer_id):
@@ -417,20 +418,17 @@ class AresBot:
         name = self.get_user_name(target)
         data = cursor.execute("SELECT warns, level, exp, coins FROM users WHERE user_id=?", (target,)).fetchone()
         warns, lvl, exp, coins = data if data else (0,1,0,1000)
-        # Для красоты
         exp_next = lvl * 100
         bar_length = 10
         filled = int((exp / exp_next) * bar_length) if exp_next else 0
         bar = "█" * filled + "░" * (bar_length - filled)
         msg = f"""
 📊 **Статистика {name}**
-╔════════════════════╗
 ⚠️ Предупреждений: {warns}/3
 📈 Уровень: {lvl} | Опыт: {exp}/{exp_next}
 📊 [{bar}]
 💰 Монет: {coins} 🪙
-╚════════════════════╝
-        """
+"""
         self.send(peer_id, msg)
 
     def cmd_profile(self, peer_id, from_id):
@@ -485,7 +483,6 @@ class AresBot:
             self.send(peer_id, "❌ Некорректный пользователь.")
             return
         reason = " ".join(args[1:]) if len(args) > 1 else "Не указана"
-        # Проверяем, не выше ли приоритет цели
         if self.get_user_priority(target, chat_id) >= self.get_user_priority(from_id, chat_id) and not self.is_sysadmin(from_id):
             self.send(peer_id, "⛔ Вы не можете выдать предупреждение пользователю с равным или более высоким приоритетом.")
             return
@@ -587,7 +584,6 @@ class AresBot:
         else:
             reason = " ".join(args[1:]) if len(args) > 1 else "Не указана"
         expires = 0 if days == 0 else int(time.time()) + days * 86400
-        # Проверка приоритета
         if self.get_user_priority(target, chat_id) >= self.get_user_priority(from_id, chat_id) and not self.is_sysadmin(from_id):
             self.send(peer_id, "⛔ Вы не можете забанить пользователя с равным или более высоким приоритетом.")
             return
@@ -627,7 +623,6 @@ class AresBot:
             self.send(peer_id, "📋 Список забаненных пуст.")
             return
         text = "📋 **Забаненные в этом чате:**\n"
-        now = int(time.time())
         for uid, reason, date, expires in bans:
             name = self.get_user_name(uid)
             exp_str = "навсегда" if expires == 0 else f"до {datetime.fromtimestamp(expires).strftime('%d.%m.%Y')}"
@@ -654,12 +649,10 @@ class AresBot:
         except:
             self.send(peer_id, "❌ Приоритет должен быть числом.")
             return
-        # Проверяем, существует ли такая роль в чате
         role = cursor.execute("SELECT name FROM roles WHERE chat_id=? AND priority=?", (chat_id, priority)).fetchone()
         if not role:
             self.send(peer_id, "❌ Роль с таким приоритетом не существует.")
             return
-        # Выдаём роль
         cursor.execute("INSERT OR REPLACE INTO user_roles (user_id, chat_id, priority) VALUES (?,?,?)",
                        (target, chat_id, priority))
         conn.commit()
@@ -704,7 +697,6 @@ class AresBot:
         if not name:
             self.send(peer_id, "❌ Укажите название роли.")
             return
-        # Проверяем, не занят ли приоритет
         exist = cursor.execute("SELECT id FROM roles WHERE chat_id=? AND priority=?", (chat_id, priority)).fetchone()
         if exist:
             cursor.execute("UPDATE roles SET name=? WHERE chat_id=? AND priority=?", (name, chat_id, priority))
@@ -730,7 +722,6 @@ class AresBot:
         except:
             self.send(peer_id, "❌ Приоритет должен быть числом.")
             return
-        # Нельзя удалить стандартные роли? Можно, но пусть будет.
         cursor.execute("DELETE FROM roles WHERE chat_id=? AND priority=?", (chat_id, priority))
         conn.commit()
         self.send(peer_id, f"✅ Роль с приоритетом {priority} удалена.")
@@ -782,11 +773,9 @@ class AresBot:
         except:
             self.send(peer_id, "❌ Приоритет должен быть числом.")
             return
-        # Выдаём роль в текущем чате (или можно везде? пусть в текущем)
         if not chat_id:
             self.send(peer_id, "❌ Эта команда работает только в беседах.")
             return
-        # Проверим, существует ли такая роль в чате
         role = cursor.execute("SELECT name FROM roles WHERE chat_id=? AND priority=?", (chat_id, priority)).fetchone()
         if not role:
             self.send(peer_id, "❌ Роль с таким приоритетом не существует в этом чате.")
@@ -867,33 +856,26 @@ class AresBot:
         if coins < bet:
             self.send(peer_id, f"❌ Недостаточно монет. У вас {coins} 🪙")
             return
-        # Игра
         r = random.random()
-        if r < 0.45:  # проигрыш
+        if r < 0.45:
             win = 0
             result = "❌ Проигрыш"
             new_coins = coins - bet
-        elif r < 0.75:  # возврат
+        elif r < 0.75:
             win = bet
             result = "🤝 Ничья"
             new_coins = coins
-        elif r < 0.92:  # x2
+        elif r < 0.92:
             win = bet * 2
             result = "✅ Выигрыш x2"
             new_coins = coins + bet
-        else:  # x5
+        else:
             win = bet * 5
             result = "🎉 ДЖЕКПОТ x5!"
             new_coins = coins + bet * 4
         cursor.execute("UPDATE users SET coins=? WHERE user_id=?", (new_coins, from_id))
         conn.commit()
-        self.send(peer_id, f"""
-🎰 **Казино**
-Ставка: {bet} 🪙
-Результат: {result}
-Выигрыш: {win} 🪙
-Баланс: {new_coins} 🪙
-        """)
+        self.send(peer_id, f"🎰 **Казино**\nСтавка: {bet} 🪙\nРезультат: {result}\nВыигрыш: {win} 🪙\nБаланс: {new_coins} 🪙")
 
     def cmd_pay(self, args, peer_id, from_id, chat_id):
         if len(args) < 2:
@@ -991,4 +973,5 @@ if __name__ == "__main__":
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
     # Запускаем FastAPI сервер
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
