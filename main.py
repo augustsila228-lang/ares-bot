@@ -1,5 +1,5 @@
 # ============================================
-# ARES: ТЕСТОВАЯ ВЕРСИЯ С ЯРКИМИ ЛОГАМИ
+# ARES: ЧАТ-МЕНЕДЖЕР (РАБОЧАЯ ВЕРСИЯ)
 # ============================================
 
 import vk_api
@@ -12,70 +12,43 @@ import threading
 import os
 
 # ===== ТВОИ ДАННЫЕ =====
-TOKEN = "vk1.a.UNxYimCDso61gjA8nJ1tkq-Mqe5PEpym6qli4sMSeqiHmYr4ST80kbGA3bDGLL1sxsTsPqHHxoI8UlSzMu75RcGcEkUrM3cgYQ3WCbnxk_nrA6tafME59-Z_O2V6oI7saA5WoYZlGLsIv-REhzlu0JyVlejwF_IlVE1AdNQgyB0Yh-0yVez0zXTp2lTk4XAxSWBsVnL2oyr4BF00xB6hsg"
+TOKEN = "vk1.a.mjjuX0_S2Zx-ra-sSHYRNM22uoabRZiXCWoyCU7Kq_e0Bpho5mRRD7CE9wKd96lLSiwNxl1YkLgyCafmIG78pZGzyQD0B131Pvq6Bg57uLpuP_WUWt_jXqkFaWhCAWVzJC-F5-sPyzMIdQ26XFQK52lesM-J5dKYuKHNfD5NnlJ8TapES2zo5azgGepPg0i8mMxL6edbZURWx4aatdp7BA"
 GROUP_ID = 236517090
+BOT_NAME = "ARES"
+PREFIX = "/"
 
-print("🔥🔥🔥 СКРИПТ ЗАПУЩЕН 🔥🔥🔥")
-print(f"🔑 Токен: {TOKEN[:20]}...")
-print(f"📦 Группа ID: {GROUP_ID}")
+print("✅ Бот запускается...")
 
-# Пытаемся подключиться к VK
-try:
-    print("⏳ Подключаюсь к VK API...")
-    vk_session = vk_api.VkApi(token=TOKEN)
-    vk = vk_session.get_api()
-    print("✅ VK API подключен")
-
-    print("⏳ Инициализирую LongPoll...")
-    longpoll = VkBotLongPoll(vk_session, group_id=GROUP_ID)
-    print("✅ LongPoll готов")
-except Exception as e:
-    print(f"❌ ОШИБКА ПОДКЛЮЧЕНИЯ К VK: {e}")
-    # Не выходим, чтобы FastAPI всё равно запустился
+vk_session = vk_api.VkApi(token=TOKEN)
+vk = vk_session.get_api()
+longpoll = VkBotLongPoll(vk_session, group_id=GROUP_ID)
 
 def send_msg(peer_id, message):
-    try:
-        vk.messages.send(
-            peer_id=peer_id,
-            message=message,
-            random_id=get_random_id()
-        )
-        print(f"✅ Отправлено: {message}")
-    except Exception as e:
-        print(f"❌ Ошибка отправки: {e}")
+    vk.messages.send(peer_id=peer_id, message=message, random_id=get_random_id())
+
+print("🚀 Бот слушает события...")
 
 def bot_worker():
-    print("🚀🚀🚀 БОТ ЗАПУЩЕН В ПОТОКЕ 🚀🚀🚀")
-    print("👂 Слушаю сообщения...")
     while True:
         try:
             for event in longpoll.listen():
                 if event.type == VkBotEventType.MESSAGE_NEW:
                     msg = event.obj.message
-                    peer_id = msg['peer_id']
                     text = msg['text'].strip()
-                    print(f"💬 ПОЛУЧЕНО СООБЩЕНИЕ: {text}")
-                    
                     if text == "/пинг":
-                        send_msg(peer_id, "🏓 Понг!")
-                    elif text == "/тест":
-                        send_msg(peer_id, "✅ Тест пройден!")
+                        send_msg(msg['peer_id'], "🏓 Понг!")
         except Exception as e:
-            print(f"❌ ОШИБКА В ЦИКЛЕ: {e}")
+            print(f"Ошибка: {e}")
             time.sleep(5)
 
 app = FastAPI()
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "ARES bot is running"}
+    return {"status": "ok"}
 
 if __name__ == "__main__":
-    print("⏳ Запускаю поток бота...")
     thread = threading.Thread(target=bot_worker, daemon=True)
     thread.start()
-    print("✅ Поток запущен")
-
-    print("⏳ Запускаю FastAPI сервер...")
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
